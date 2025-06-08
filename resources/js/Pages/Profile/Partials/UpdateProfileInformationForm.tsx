@@ -4,7 +4,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { Transition } from '@headlessui/react';
-import { FormEventHandler } from 'react';
+import { FormEventHandler, useRef } from 'react'; // Tambahkan useRef
 import { PageProps } from '@/types';
 
 export default function UpdateProfileInformation({
@@ -18,18 +18,65 @@ export default function UpdateProfileInformation({
 }) {
     const user = usePage<PageProps>().props.auth.user;
 
-    const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
+    // --- State untuk Update Informasi Profil (Nama & Email) ---
+    const {
+        data: profileData,
+        setData: setProfileData,
+        patch: patchProfile,
+        errors: profileErrors,
+        processing: profileProcessing,
+        recentlySuccessful: profileRecentlySuccessful,
+    } = useForm({
         name: user.name,
         email: user.email,
+        // Tidak perlu password untuk verifikasi update profil di sini
     });
 
-    const submit: FormEventHandler = (e) => {
+    // --- State untuk Update Password ---
+    const passwordInput = useRef<HTMLInputElement>(null);
+    const currentPasswordInput = useRef<HTMLInputElement>(null);
+
+    const {
+        data: passwordData,
+        setData: setPasswordData,
+        put: putPassword, // Menggunakan PUT karena rute update password biasanya PUT
+        errors: passwordErrors,
+        processing: passwordProcessing,
+        recentlySuccessful: passwordRecentlySuccessful,
+        reset: resetPasswordForm,
+    } = useForm({
+        current_password: '',
+        password: '',
+        password_confirmation: '',
+    });
+
+    // --- Handler untuk Update Informasi Profil ---
+    const submitProfileUpdate: FormEventHandler = (e) => {
         e.preventDefault();
-        patch(route('profile.update'));
+        patchProfile(route('profile.update'));
+    };
+
+    // --- Handler untuk Update Password ---
+    const submitPasswordUpdate: FormEventHandler = (e) => {
+        e.preventDefault();
+
+        putPassword(route('password.update'), {
+            preserveScroll: true, // Agar scroll tidak reset setelah submit
+            onSuccess: () => resetPasswordForm(), // Reset form password setelah sukses
+            onError: (errors) => { // Fokus pada input error
+                if (errors.current_password) {
+                    currentPasswordInput.current?.focus();
+                }
+                if (errors.password) {
+                    passwordInput.current?.focus();
+                }
+            },
+        });
     };
 
     return (
         <section className={className}>
+            {/* Bagian untuk Update Informasi Profil */}
             <header>
                 <h2 className="text-lg font-medium text-gray-900">Profile Information</h2>
                 <p className="mt-1 text-sm text-gray-600">
@@ -37,19 +84,19 @@ export default function UpdateProfileInformation({
                 </p>
             </header>
 
-            <form onSubmit={submit} className="mt-6 space-y-6">
+            <form onSubmit={submitProfileUpdate} className="mt-6 space-y-6">
                 <div>
                     <InputLabel htmlFor="name" value="Name" />
                     <TextInput
                         id="name"
                         className="mt-1 block w-full"
-                        value={data.name}
-                        onChange={(e) => setData('name', e.target.value)}
+                        value={profileData.name}
+                        onChange={(e) => setProfileData('name', e.target.value)}
                         required
                         isFocused
                         autoComplete="name"
                     />
-                    <InputError className="mt-2" message={errors.name} />
+                    <InputError className="mt-2" message={profileErrors.name} />
                 </div>
 
                 <div>
@@ -58,14 +105,15 @@ export default function UpdateProfileInformation({
                         id="email"
                         type="email"
                         className="mt-1 block w-full"
-                        value={data.email}
-                        onChange={(e) => setData('email', e.target.value)}
+                        value={profileData.email}
+                        onChange={(e) => setProfileData('email', e.target.value)}
                         required
                         autoComplete="username"
                     />
-                    <InputError className="mt-2" message={errors.email} />
+                    <InputError className="mt-2" message={profileErrors.email} />
                 </div>
 
+                {/* Bagian verifikasi email, tetap seperti semula */}
                 {mustVerifyEmail && user.email_verified_at === null && (
                     <div>
                         <p className="text-sm mt-2 text-gray-800">
@@ -89,16 +137,83 @@ export default function UpdateProfileInformation({
                 )}
 
                 <div className="flex items-center gap-4">
-                    <PrimaryButton disabled={processing}>Save</PrimaryButton>
+                    <PrimaryButton disabled={profileProcessing}>Save Profile Information</PrimaryButton>
 
                     <Transition
-                        show={recentlySuccessful}
+                        show={profileRecentlySuccessful}
                         enter="transition ease-in-out"
                         enterFrom="opacity-0"
                         leave="transition ease-in-out"
                         leaveTo="opacity-0"
                     >
-                        <p className="text-sm text-gray-600">Saved.</p>
+                        <p className="text-sm text-gray-600">Profile Information Saved.</p>
+                    </Transition>
+                </div>
+            </form>
+
+            <hr className="my-8 border-gray-200" /> {/* Garis pemisah visual */}
+
+            {/* Bagian untuk Update Password */}
+            <header className="mt-6">
+                <h2 className="text-lg font-medium text-gray-900">Update Password</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                    Ensure your account is using a long, random password to stay secure.
+                </p>
+            </header>
+
+            <form onSubmit={submitPasswordUpdate} className="mt-6 space-y-6">
+                <div>
+                    <InputLabel htmlFor="current_password" value="Current Password" />
+                    <TextInput
+                        id="current_password"
+                        ref={currentPasswordInput}
+                        value={passwordData.current_password}
+                        onChange={(e) => setPasswordData('current_password', e.target.value)}
+                        type="password"
+                        className="mt-1 block w-full"
+                        autoComplete="current-password"
+                    />
+                    <InputError message={passwordErrors.current_password} className="mt-2" />
+                </div>
+
+                <div>
+                    <InputLabel htmlFor="password" value="New Password" />
+                    <TextInput
+                        id="password"
+                        ref={passwordInput}
+                        value={passwordData.password}
+                        onChange={(e) => setPasswordData('password', e.target.value)}
+                        type="password"
+                        className="mt-1 block w-full"
+                        autoComplete="new-password"
+                    />
+                    <InputError message={passwordErrors.password} className="mt-2" />
+                </div>
+
+                <div>
+                    <InputLabel htmlFor="password_confirmation" value="Confirm New Password" />
+                    <TextInput
+                        id="password_confirmation"
+                        value={passwordData.password_confirmation}
+                        onChange={(e) => setPasswordData('password_confirmation', e.target.value)}
+                        type="password"
+                        className="mt-1 block w-full"
+                        autoComplete="new-password"
+                    />
+                    <InputError message={passwordErrors.password_confirmation} className="mt-2" />
+                </div>
+
+                <div className="flex items-center gap-4">
+                    <PrimaryButton disabled={passwordProcessing}>Save New Password</PrimaryButton>
+
+                    <Transition
+                        show={passwordRecentlySuccessful}
+                        enter="transition ease-in-out"
+                        enterFrom="opacity-0"
+                        leave="transition ease-in-out"
+                        leaveTo="opacity-0"
+                    >
+                        <p className="text-sm text-gray-600">Password Saved.</p>
                     </Transition>
                 </div>
             </form>
