@@ -4,6 +4,8 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\Admin\UserController; // Pastikan ini diimpor
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -33,39 +35,33 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// --- Tambahkan Rute yang Dilindungi Peran di Sini ---
+// --- Rute yang Dilindungi Peran ---
 
-// Contoh Rute untuk Admin
+// Rute untuk Admin
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    Route::get('/admin/users', function () {
-        // Logika untuk menampilkan halaman manajemen user
-        return Inertia::render('Admin/UserManagement'); // Anda perlu membuat komponen React ini
-    })->name('admin.users');
-
-    // Tambahkan rute admin lainnya di sini
+    // --- Rute Manajemen Pengguna (CRUD) ---
+    // Gunakan ini untuk menampilkan daftar pengguna dari controller
+    Route::get('/admin/users', [UserController::class, 'index'])->name('admin.users.index');
+    // Rute untuk update peran pengguna
+    Route::put('/admin/users/{user}/role', [UserController::class, 'updateRole'])->name('admin.users.updateRole');
 });
 
 // Contoh Rute untuk Manajer Proyek (dan juga Admin)
 Route::middleware(['auth', 'role:manajer proyek|admin'])->group(function () {
     Route::get('/projects', function () {
-        // Logika untuk menampilkan daftar proyek
-        return Inertia::render('Project/Index'); // Anda perlu membuat komponen React ini
+        return Inertia::render('Project/Index');
     })->name('projects.index');
 
     Route::get('/projects/create', function () {
-        // Logika untuk menampilkan form buat proyek baru
-        return Inertia::render('Project/Create'); // Anda perlu membuat komponen React ini
+        return Inertia::render('Project/Create');
     })->name('projects.create');
-    // Tambahkan rute manajer proyek lainnya
 });
 
 // Contoh Rute untuk Anggota Tim (dan juga Manajer Proyek, Admin)
 Route::middleware(['auth', 'role:anggota tim|manajer proyek|admin'])->group(function () {
     Route::get('/tasks', function () {
-        // Logika untuk menampilkan daftar tugas
-        return Inertia::render('Task/Index'); // Anda perlu membuat komponen React ini
+        return Inertia::render('Task/Index');
     })->name('tasks.index');
-    // Tambahkan rute anggota tim lainnya
 });
 
 require __DIR__.'/auth.php';
