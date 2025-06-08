@@ -4,7 +4,6 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -20,8 +19,6 @@ Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
     ]);
 });
 
@@ -69,6 +66,5 @@ Route::middleware(['auth', 'role:anggota tim|manajer proyek|admin'])->group(func
     })->name('tasks.index');
     // Tambahkan rute anggota tim lainnya
 });
-
 
 require __DIR__.'/auth.php';
