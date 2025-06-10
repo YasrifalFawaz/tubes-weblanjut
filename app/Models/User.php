@@ -7,14 +7,25 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles; // Pastikan ini diimpor untuk Spatie Laravel-Permission
+use Spatie\Permission\Traits\HasRoles; 
+use Tymon\JWTAuth\Contracts\JWTSubject;// Pastikan ini diimpor untuk Spatie Laravel-Permission
 
 /**
  * @mixin \Spatie\Permission\Traits\HasRoles // <--- Tambahkan baris ini untuk membantu IDE (Intelephense)
  */
-class User extends Authenticatable
+class User extends Authenticatable implements JWTSubject
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles; // Pastikan HasRoles ada di sini
+
+    public function getJWTIdentifier()
+    {
+        return $this->getKey();
+    }
+
+    public function getJWTCustomClaims(): array
+    {
+        return [];
+    }
 
     /**
      * The attributes that are mass assignable.
