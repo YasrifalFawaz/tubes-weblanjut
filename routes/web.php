@@ -5,6 +5,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\Admin\UserController; // Pastikan ini diimpor
+use App\Http\Controllers\ProjectController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,6 +34,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
 });
 
 // --- Rute yang Dilindungi Peran ---
@@ -48,13 +50,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
 // Contoh Rute untuk Manajer Proyek (dan juga Admin)
 Route::middleware(['auth', 'role:manajer proyek|admin'])->group(function () {
-    Route::get('/projects', function () {
-        return Inertia::render('Project/Index');
-    })->name('projects.index');
-
-    Route::get('/projects/create', function () {
-        return Inertia::render('Project/Create');
-    })->name('projects.create');
+    // Ganti Inertia::render langsung dengan menggunakan controller
+    Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
+    Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store'); // Untuk menyimpan proyek baru
 });
 
 // Contoh Rute untuk Anggota Tim (dan juga Manajer Proyek, Admin)
