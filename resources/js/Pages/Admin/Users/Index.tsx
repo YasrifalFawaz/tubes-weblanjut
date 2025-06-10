@@ -1,78 +1,49 @@
-import AuthenticatedSidebarLayout from '@/Pages/Layouts/AuthenticatedSidebarLayout';
 import { Head, usePage, router } from '@inertiajs/react';
+import AuthenticatedSidebarLayout from '@/Pages/Layouts/AuthenticatedSidebarLayout';
 import { PageProps } from '@/types';
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  roles: { name: string }[];
-}
-
-interface Role {
-  id: number;
-  name: string;
-}
-
 export default function Index() {
-  const { auth, users, roles, status } = usePage<PageProps<{ users: User[], roles: Role[], status?: string }>>().props;
+  const { auth, users, roles, success } = usePage<PageProps<any>>().props;
 
-  const actualUser = auth.user.data;
-  const userRoles = actualUser.roles || [];
-
-  const handleChangeRole = (userId: number, role: string) => {
-    router.put(route('admin.users.updateRole', userId), {
-      role: role,
-    }, {
-      onSuccess: () => {
-        console.log('Peran berhasil diperbarui!');
-      },
-      onError: (errors) => {
-        console.error(errors);
-      }
-    });
+  const handleDelete = (id: number) => {
+    if (confirm('Yakin mau hapus user ini?')) {
+      router.delete(route('admin.users.destroy', id));
+    }
   };
 
   return (
-    <AuthenticatedSidebarLayout user={actualUser} title="Manajemen User">
-      <Head title="Manajemen User" />
+    <AuthenticatedSidebarLayout user={auth.user.data} title="User Management">
+      <Head title="User Management" />
 
-      <div className="py-6">
+      {success && <div className="p-2 bg-green-200 mb-4">{success}</div>}
 
-        {status && <div className="mb-4 p-2 bg-green-100 text-green-700 rounded">{status}</div>}
-
-        <table className="w-full border">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="p-2 border">Nama</th>
-              <th className="p-2 border">Email</th>
-              <th className="p-2 border">Role</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td className="p-2 border">{user.name}</td>
-                <td className="p-2 border">{user.email}</td>
-                <td className="p-2 border">
-                  <select
-                    defaultValue={user.roles[0]?.name ?? ''}
-                    onChange={(e) => handleChangeRole(user.id, e.target.value)}
-                    className="border p-1 rounded"
-                  >
-                    <option value="">Pilih Role</option>
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.name}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mb-4">
+        <a href={route('admin.users.create')} className="px-3 py-2 bg-blue-600 text-white rounded">Tambah User</a>
       </div>
+
+      <table className="w-full border">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="p-2 border">Nama</th>
+            <th className="p-2 border">Email</th>
+            <th className="p-2 border">Role</th>
+            <th className="p-2 border">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((user: any) => (
+            <tr key={user.id}>
+              <td className="border p-2">{user.name}</td>
+              <td className="border p-2">{user.email}</td>
+              <td className="border p-2">{user.roles[0]?.name}</td>
+              <td className="border p-2">
+                <a href={route('admin.users.edit', user.id)} className="text-blue-600 mr-2">Edit</a>
+                <button onClick={() => handleDelete(user.id)} className="text-red-600">Hapus</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </AuthenticatedSidebarLayout>
   );
 }
