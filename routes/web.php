@@ -52,6 +52,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 Route::middleware(['auth', 'role:manajer proyek|admin'])->group(function () {
     // Ganti Inertia::render langsung dengan menggunakan controller
     Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
+    Route::get('/projects/{id}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
+    Route::delete('/projects/{id}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+    Route::put('/projects/{id}', [ProjectController::class, 'update'])->name('projects.update');
+    Route::post('/projects/{id}/status', [ProjectController::class, 'updateStatus'])->name('projects.updateStatus');
     Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store'); // Untuk menyimpan proyek baru
 });
 

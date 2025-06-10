@@ -3,56 +3,96 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
-// use App\Models\User; // Tidak perlu lagi mengimpor User jika tidak mengambil daftar user
-use Illuminate\Http\Request; // <<< TAMBAHKAN INI
+use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Auth; // Pastikan ini ada
+use Illuminate\Support\Facades\Auth;
 
 class ProjectController extends Controller
 {
-    /**
-     * Display a listing of the projects.
-     */
     public function index()
     {
         $projects = Project::with('user')->get();
-        // $users = User::all(); // <<< HAPUS BARIS INI
 
         return Inertia::render('Project/Index', [
             'projects' => $projects,
-            // 'users' => $users, // <<< HAPUS BARIS INI
         ]);
     }
 
-    /**
-     * Show the form for creating a new project.
-     */
     public function create()
     {
-        // Jika halaman create ini hanya untuk admin/manajer proyek, tidak perlu user list
         return Inertia::render('Project/Create');
     }
 
-    /**
-     * Store a newly created project in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            // 'user_id' tidak perlu divalidasi 'exists' karena akan diisi otomatis dari user yang login
         ]);
 
         Project::create([
             'name' => $request->name,
             'description' => $request->description,
-            'user_id' => Auth::id(), // <<< UBAH BARIS INI: Otomatis mengisi dengan ID user yang login
-            'status' => 'progress', // Set default status secara eksplisit atau biarkan database yang menangani
+            'user_id' => Auth::id(),
+            'status' => 'progress',
         ]);
 
         return redirect()->route('projects.index')->with('success', 'Proyek berhasil dibuat!');
     }
 
-    // ... metode lain jika ada
+    public function edit($id)
+{
+    $project = Project::findOrFail($id);
+    $this->authorize('update', $project); // Policy check
+    return Inertia::render('Project/Edit', [
+        'project' => $project,
+    ]);
+}
+
+
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        $project = Project::findOrFail($id);
+        $project->update([
+            'name' => $request->name,
+            'description' => $request->description,
+        ]);
+
+        return redirect()->route('projects.index')->with('success', 'Proyek berhasil diperbarui!');
+    }
+
+    /** ✅ Hapus proyek */
+    public function destroy($id)
+    {
+        $project = Project::findOrFail($id);
+        $project->delete();
+
+        return redirect()->route('projects.index')->with('success', 'Proyek berhasil dihapus!');
+    }
+
+    /** ✅ Update status proyek - DIPERBAIKI */
+    public function updateStatus(Request $request, $id)
+    {
+        // Validasi input status
+        $request->validate([
+            'status' => 'required|in:progress,completed'
+        ]);
+
+        $project = Project::findOrFail($id);
+        
+        // Update status dengan nilai dari request
+        $project->update([
+            'status' => $request->status
+        ]);
+
+        // Log untuk debugging (opsional)
+        \Log::info("Project {$project->id} status updated to: {$request->status}");
+
+        return redirect()->route('projects.index')->with('success', 'Status proyek berhasil diperbarui!');
+    }
 }
