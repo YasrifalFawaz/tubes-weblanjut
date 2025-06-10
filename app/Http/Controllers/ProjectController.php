@@ -6,6 +6,7 @@ use App\Models\Project;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class ProjectController extends Controller
 {
@@ -41,14 +42,13 @@ class ProjectController extends Controller
     }
 
     public function edit($id)
-{
-    $project = Project::findOrFail($id);
-    $this->authorize('update', $project); // Policy check
-    return Inertia::render('Project/Edit', [
-        'project' => $project,
-    ]);
-}
-
+    {
+        $project = Project::findOrFail($id);
+        $this->authorize('update', $project); // Policy check
+        return Inertia::render('Project/Edit', [
+            'project' => $project,
+        ]);
+    }
 
     public function update(Request $request, $id)
     {
@@ -66,7 +66,6 @@ class ProjectController extends Controller
         return redirect()->route('projects.index')->with('success', 'Proyek berhasil diperbarui!');
     }
 
-    /** ✅ Hapus proyek */
     public function destroy($id)
     {
         $project = Project::findOrFail($id);
@@ -75,24 +74,43 @@ class ProjectController extends Controller
         return redirect()->route('projects.index')->with('success', 'Proyek berhasil dihapus!');
     }
 
-    /** ✅ Update status proyek - DIPERBAIKI */
-    public function updateStatus(Request $request, $id)
+    /**
+     * Update status proyek - DIPERBAIKI dengan logging
+     */
+    public function updateStatus(Request $request, Project $project)
     {
-        // Validasi input status
+        // Validasi input
         $request->validate([
-            'status' => 'required|in:progress,completed'
+            'status' => 'required|in:progress,completed',
         ]);
 
-        $project = Project::findOrFail($id);
-        
-        // Update status dengan nilai dari request
+        // Log untuk debugging
+        Log::info('Updating project status', [
+            'project_id' => $project->id,
+            'old_status' => $project->status,
+            'new_status' => $request->status,
+            'user_id' => Auth::id()
+        ]);
+
+        // Update status
         $project->update([
             'status' => $request->status
         ]);
 
-        // Log untuk debugging (opsional)
-        \Log::info("Project {$project->id} status updated to: {$request->status}");
+        // Verify update
+        $project->refresh();
+        
+        Log::info('Project status updated successfully', [
+            'project_id' => $project->id,
+            'current_status' => $project->status
+        ]);
 
-        return redirect()->route('projects.index')->with('success', 'Status proyek berhasil diperbarui!');
+        // Return dengan fresh data - KUNCI UTAMA
+        return redirect()->route('projects.index')->with([
+            'success' => 'Status proyek berhasil diubah menjadi ' . 
+                        ($request->status === 'completed' ? 'Selesai' : 'Dalam Progress'),
+            'updated_project_id' => $project->id,
+            'new_status' => $project->status
+        ]);
     }
 }

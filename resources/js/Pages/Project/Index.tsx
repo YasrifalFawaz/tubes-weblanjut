@@ -1,7 +1,7 @@
 // resources/js/Pages/Project/Index.tsx
 import React, { FormEvent, useState } from 'react';
 import AuthenticatedSidebarLayout from '@/Pages/Layouts/AuthenticatedSidebarLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import { PageProps, User } from '@/types';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
@@ -39,6 +39,7 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
     const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
     const [showEditProjectModal, setShowEditProjectModal] = useState(false);
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
@@ -46,9 +47,6 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
     });
     
     const { delete: destroyProject } = useForm();
-
-    // Form untuk update status
-    const { put: updateStatus, processing: statusProcessing } = useForm();
 
     const {
         data: editData,
@@ -105,36 +103,109 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
         });
     };
 
-    // Fungsi untuk mengubah status proyek menjadi completed
+    // SOLUSI 1: Menggunakan router.put dengan preserveState: false
     const markAsCompleted = (projectId: number) => {
         if (confirm('Yakin ingin mengubah status proyek ini menjadi selesai?')) {
-            updateStatus(route('projects.update-status', projectId), {
-                data: { status: 'completed' },
-                onSuccess: () => {
-                    // Refresh halaman atau tampilkan notifikasi
-                    console.log('Status proyek berhasil diubah menjadi selesai');
-                },
-                onError: (errors) => {
-                    console.error('Gagal mengubah status:', errors);
-                    alert('Gagal mengubah status proyek. Silakan coba lagi.');
+            setUpdatingStatusId(projectId);
+            
+            router.put(route('projects.update-status', projectId), 
+                { status: 'completed' }, 
+                {
+                    preserveState: false,
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setUpdatingStatusId(null);
+                        console.log('Status berhasil diubah menjadi completed');
+                    },
+                    onError: (errors) => {
+                        setUpdatingStatusId(null);
+                        console.error('Error:', errors);
+                        alert('Gagal mengubah status proyek. Silakan coba lagi.');
+                    },
+                    onFinish: () => {
+                        setUpdatingStatusId(null);
+                    }
                 }
-            });
+            );
         }
     };
 
-    // Fungsi untuk mengubah status kembali ke progress (optional)
     const markAsProgress = (projectId: number) => {
         if (confirm('Yakin ingin mengubah status proyek ini menjadi dalam progress?')) {
-            updateStatus(route('projects.update-status', projectId), {
-                data: { status: 'progress' },
-                onSuccess: () => {
-                    console.log('Status proyek berhasil diubah menjadi progress');
-                },
-                onError: (errors) => {
-                    console.error('Gagal mengubah status:', errors);
-                    alert('Gagal mengubah status proyek. Silakan coba lagi.');
+            setUpdatingStatusId(projectId);
+            
+            router.put(route('projects.update-status', projectId), 
+                { status: 'progress' }, 
+                {
+                    preserveState: false,
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setUpdatingStatusId(null);
+                        console.log('Status berhasil diubah menjadi progress');
+                    },
+                    onError: (errors) => {
+                        setUpdatingStatusId(null);
+                        console.error('Error:', errors);
+                        alert('Gagal mengubah status proyek. Silakan coba lagi.');
+                    },
+                    onFinish: () => {
+                        setUpdatingStatusId(null);
+                    }
                 }
-            });
+            );
+        }
+    };
+
+    // SOLUSI 2: Alternatif menggunakan router.reload setelah update
+    const markAsCompletedAlt = (projectId: number) => {
+        if (confirm('Yakin ingin mengubah status proyek ini menjadi selesai?')) {
+            setUpdatingStatusId(projectId);
+            
+            router.put(route('projects.update-status', projectId), 
+                { status: 'completed' }, 
+                {
+                    onSuccess: () => {
+                        // Force reload data after success
+                        router.reload({
+                            only: ['projects'],
+                            preserveScroll: true,
+                            onSuccess: () => {
+                                setUpdatingStatusId(null);
+                            }
+                        });
+                    },
+                    onError: (errors) => {
+                        setUpdatingStatusId(null);
+                        alert('Gagal mengubah status proyek. Silakan coba lagi.');
+                    }
+                }
+            );
+        }
+    };
+
+    const markAsProgressAlt = (projectId: number) => {
+        if (confirm('Yakin ingin mengubah status proyek ini menjadi dalam progress?')) {
+            setUpdatingStatusId(projectId);
+            
+            router.put(route('projects.update-status', projectId), 
+                { status: 'progress' }, 
+                {
+                    onSuccess: () => {
+                        // Force reload data after success
+                        router.reload({
+                            only: ['projects'],
+                            preserveScroll: true,
+                            onSuccess: () => {
+                                setUpdatingStatusId(null);
+                            }
+                        });
+                    },
+                    onError: (errors) => {
+                        setUpdatingStatusId(null);
+                        alert('Gagal mengubah status proyek. Silakan coba lagi.');
+                    }
+                }
+            );
         }
     };
 
@@ -177,83 +248,93 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                             <p>Belum ada proyek yang tersedia.</p>
                         ) : (
                             <ul className="divide-y divide-gray-200">
-                                {projects.map((project) => (
-                                    <li key={project.id} className="py-4">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <h4 className="text-md font-semibold">{project.name}</h4>
-                                                <p className="text-sm text-gray-600">{project.description}</p>
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                    Dibuat oleh: {project.user.name} | Status: 
-                                                    <span className={`font-semibold ml-1 ${
-                                                        project.status === 'completed' ? 'text-green-600' : 'text-yellow-600'
-                                                    }`}>
-                                                        {project.status === 'completed' ? 'Selesai' : 'Dalam Progress'}
-                                                    </span>
-                                                </p>
-                                            </div>
-
-                                            {canManageProjects && (
-                                                <div className="flex space-x-2">
-                                                    {/* Tombol untuk mengubah status */}
-                                                    {project.status === 'progress' ? (
-                                                        <button
-                                                            onClick={() => markAsCompleted(project.id)}
-                                                            disabled={statusProcessing}
-                                                            className={`text-xs border rounded px-2 py-1 transition-colors ${
-                                                                statusProcessing
-                                                                    ? 'text-gray-400 border-gray-300 cursor-not-allowed'
-                                                                    : 'text-indigo-600 border-indigo-400 hover:bg-indigo-50'
-                                                            }`}
-                                                        >
-                                                            {statusProcessing ? 'Memproses...' : 'Tandai Selesai'}
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => markAsProgress(project.id)}
-                                                            disabled={statusProcessing}
-                                                            className={`text-xs border rounded px-2 py-1 transition-colors ${
-                                                                statusProcessing
-                                                                    ? 'text-gray-400 border-gray-300 cursor-not-allowed'
-                                                                    : 'text-yellow-600 border-yellow-400 hover:bg-yellow-50'
-                                                            }`}
-                                                        >
-                                                            {statusProcessing ? 'Memproses...' : 'Tandai Progress'}
-                                                        </button>
-                                                    )}
-                                                    
-                                                    <button
-                                                        onClick={() => openEditProjectModal(project)}
-                                                        className="text-blue-600 text-xs border border-blue-400 rounded px-2 py-1 hover:bg-blue-50"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    
-                                                    <button
-                                                        onClick={() => {
-                                                            if (confirm('Yakin ingin menghapus proyek ini?')) {
-                                                                destroyProject(route('projects.destroy', project.id), {
-                                                                    onSuccess: () => {
-                                                                        alert('Proyek berhasil dihapus!');
-                                                                    },
-                                                                });
-                                                            }
-                                                        }}
-                                                        className="text-red-600 text-xs border border-red-400 rounded px-2 py-1 hover:bg-red-50"
-                                                    >
-                                                        Hapus
-                                                    </button>
+                                {projects.map((project) => {
+                                    const isUpdating = updatingStatusId === project.id;
+                                    
+                                    return (
+                                        <li key={project.id} className="py-4">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="text-md font-semibold">{project.name}</h4>
+                                                    <p className="text-sm text-gray-600">{project.description}</p>
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Dibuat oleh: {project.user.name} | Status: 
+                                                        <span className={`font-semibold ml-1 ${
+                                                            project.status === 'completed' ? 'text-green-600' : 'text-yellow-600'
+                                                        }`}>
+                                                            {project.status === 'completed' ? 'Selesai' : 'Dalam Progress'}
+                                                        </span>
+                                                        {isUpdating && (
+                                                            <span className="ml-2 text-blue-600 animate-pulse">
+                                                                (Sedang diperbarui...)
+                                                            </span>
+                                                        )}
+                                                    </p>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </li>
-                                ))}
+
+                                                {canManageProjects && (
+                                                    <div className="flex space-x-2">
+                                                        {/* Tombol untuk mengubah status */}
+                                                        {project.status === 'progress' ? (
+                                                            <button
+                                                                onClick={() => markAsCompleted(project.id)}
+                                                                disabled={isUpdating}
+                                                                className={`text-xs border rounded px-2 py-1 transition-colors ${
+                                                                    isUpdating
+                                                                        ? 'text-gray-400 border-gray-300 cursor-not-allowed'
+                                                                        : 'text-green-600 border-green-400 hover:bg-green-50'
+                                                                }`}
+                                                            >
+                                                                {isUpdating ? 'Memproses...' : 'Tandai Selesai'}
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => markAsProgress(project.id)}
+                                                                disabled={isUpdating}
+                                                                className={`text-xs border rounded px-2 py-1 transition-colors ${
+                                                                    isUpdating
+                                                                        ? 'text-gray-400 border-gray-300 cursor-not-allowed'
+                                                                        : 'text-yellow-600 border-yellow-400 hover:bg-yellow-50'
+                                                                }`}
+                                                            >
+                                                                {isUpdating ? 'Memproses...' : 'Tandai Progress'}
+                                                            </button>
+                                                        )}
+                                                        
+                                                        <button
+                                                            onClick={() => openEditProjectModal(project)}
+                                                            disabled={isUpdating}
+                                                            className="text-blue-600 text-xs border border-blue-400 rounded px-2 py-1 hover:bg-blue-50 disabled:opacity-50"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        
+                                                        <button
+                                                            onClick={() => {
+                                                                if (confirm('Yakin ingin menghapus proyek ini?')) {
+                                                                    destroyProject(route('projects.destroy', project.id), {
+                                                                        onSuccess: () => {
+                                                                            alert('Proyek berhasil dihapus!');
+                                                                        },
+                                                                    });
+                                                                }
+                                                            }}
+                                                            disabled={isUpdating}
+                                                            className="text-red-600 text-xs border border-red-400 rounded px-2 py-1 hover:bg-red-50 disabled:opacity-50"
+                                                        >
+                                                            Hapus
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </li>
+                                    );
+                                })}
                             </ul>
                         )}
                     </div>
                 </div>
             </div>
-
             {/* Modal Create Project */}
             <Modal show={showCreateProjectModal} onClose={closeCreateProjectModal}>
                 <form onSubmit={submitNewProject} className="p-6">

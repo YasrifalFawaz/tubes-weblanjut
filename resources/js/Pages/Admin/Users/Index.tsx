@@ -1,5 +1,5 @@
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, usePage, router } from '@inertiajs/react';
+import AuthenticatedSidebarLayout from '@/Pages/Layouts/AuthenticatedSidebarLayout';
+import { Head, usePage, router } from '@inertiajs/react';
 import { PageProps } from '@/types';
 
 interface User {
@@ -17,6 +17,9 @@ interface Role {
 export default function Index() {
   const { auth, users, roles, status } = usePage<PageProps<{ users: User[], roles: Role[], status?: string }>>().props;
 
+  const actualUser = auth.user.data;
+  const userRoles = actualUser.roles || [];
+
   const handleChangeRole = (userId: number, role: string) => {
     router.put(route('admin.users.updateRole', userId), {
       role: role,
@@ -31,11 +34,10 @@ export default function Index() {
   };
 
   return (
-    <AuthenticatedLayout user={auth.user}>
+    <AuthenticatedSidebarLayout user={actualUser} title="Manajemen User">
       <Head title="Manajemen User" />
 
-      <div className="py-12 max-w-4xl mx-auto">
-        <h2 className="text-2xl font-bold mb-6">Manajemen User</h2>
+      <div className="py-6">
 
         {status && <div className="mb-4 p-2 bg-green-100 text-green-700 rounded">{status}</div>}
 
@@ -70,11 +72,7 @@ export default function Index() {
             ))}
           </tbody>
         </table>
-
-        <div className="mt-4">
-          <Link href="/dashboard" className="text-blue-600 hover:underline">← Kembali</Link>
-        </div>
       </div>
-    </AuthenticatedLayout>
+    </AuthenticatedSidebarLayout>
   );
 }

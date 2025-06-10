@@ -37,27 +37,19 @@ Route::middleware('auth')->group(function () {
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
 });
 
-// --- Rute yang Dilindungi Peran ---
-
 // Rute untuk Admin
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    // --- Rute Manajemen Pengguna (CRUD) ---
-    // Gunakan ini untuk menampilkan daftar pengguna dari controller
     Route::get('/admin/users', [UserController::class, 'index'])->name('admin.users.index');
-    // Rute untuk update peran pengguna
     Route::put('/admin/users/{user}/role', [UserController::class, 'updateRole'])->name('admin.users.updateRole');
 });
 
 // Contoh Rute untuk Manajer Proyek (dan juga Admin)
 Route::middleware(['auth', 'role:manajer proyek|admin'])->group(function () {
-    // Ganti Inertia::render langsung dengan menggunakan controller
     Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
     Route::get('/projects/{id}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy'])->name('projects.destroy');
-    Route::put('/projects/{id}', [ProjectController::class, 'update'])->name('projects.update');
-    Route::post('/projects/{id}/status', [ProjectController::class, 'updateStatus'])->name('projects.updateStatus');
-    Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store'); // Untuk menyimpan proyek baru
-});
+    Route::put('/projects/{project}/update-status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
+    Route::put('/projects/{id}', [ProjectController::class, 'update'])->name('projects.update');    Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');});
 
 // Contoh Rute untuk Anggota Tim (dan juga Manajer Proyek, Admin)
 Route::middleware(['auth', 'role:anggota tim|manajer proyek|admin'])->group(function () {
