@@ -11,7 +11,7 @@ import Modal from '@/Components/Modal';
 import { User } from '@/types';
 
 // --- Interfaces ---
-// Definisi Comment Interface
+// Definisi Comment Interface (diperbarui untuk attachment)
 interface Comment {
     id: number;
     task_id: number;
@@ -21,6 +21,8 @@ interface Comment {
         name: string;
     };
     content: string;
+    attachment_path?: string; // <<< TAMBAHKAN INI (path relatif dari storage/app/public)
+    attachment_url?: string; // <<< Opsional: jika Anda membuat accessor di model
     created_at: string;
     updated_at: string;
 }
@@ -38,7 +40,7 @@ interface Task {
     status: 'to_do' | 'in_progress' | 'finished';
     created_at: string;
     updated_at: string;
-    comments: Comment[]; // <<< TAMBAHKAN KOMENTAR DI SINI >>>
+    comments: Comment[]; // Komentar terkait tugas
 }
 
 interface AssignedUser {
@@ -93,7 +95,6 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
     const finishedTasks = tasks.filter(task => task.status === 'finished');
 
     // --- useForm Instances ---
-    // Form untuk penugasan anggota tim
     const {
         data: assignData,
         setData: setAssignData,
@@ -105,7 +106,6 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
         user_ids: project.assigned_users.map(u => u.id),
     });
 
-    // Form untuk membuat tugas baru
     const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
     const {
         data: createTaskData,
@@ -118,13 +118,12 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
         name: '', description: '', user_id: '', status: 'to_do',
     });
 
-    // Form untuk mengedit tugas
     const [showEditTaskModal, setShowEditTaskModal] = useState(false);
-    const [selectedTask, setSelectedTask] = useState<Task | null>(null); // Tugas yang sedang diedit
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const {
         data: editTaskData,
         setData: setEditTaskData,
-        put: sendEditTaskUpdate, // Alias put untuk update task
+        put: sendEditTaskUpdate,
         processing: editTaskProcessing,
         errors: editTaskErrors,
         reset: resetEditTaskForm
@@ -132,20 +131,20 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
         name: '', description: '', user_id: '', status: '',
     });
 
-    // useForm untuk menghapus tugas
     const { delete: sendDeleteTask, processing: deleteTaskProcessing } = useForm();
 
-    // === START KOMENTAR: State dan Form untuk Menambah Komentar ===
-    const [showCommentForm, setShowCommentForm] = useState<number | null>(null); // ID tugas yang form komentarnya terbuka
+    // === START KOMENTAR: State dan Form untuk Menambah Komentar (dengan Attachment) ===
+    const [showCommentForm, setShowCommentForm] = useState<number | null>(null);
     const {
         data: commentData,
         setData: setCommentData,
-        post: sendComment,
+        post: sendComment, // Ini akan digunakan untuk mengirim komentar + file
         processing: commentProcessing,
         errors: commentErrors,
         reset: resetCommentForm
     } = useForm({
         content: '',
+        attachment: null as File | null, // <<< TAMBAHKAN INI: Tipe File atau null
     });
     // === AKHIR KOMENTAR ===
 
@@ -231,16 +230,21 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
         }
     };
 
-    // === START KOMENTAR: Handlers Komentar ===
+    // === START KOMENTAR: Handlers Komentar (diperbarui untuk attachment) ===
     const toggleCommentForm = (taskId: number) => {
         setShowCommentForm(showCommentForm === taskId ? null : taskId); // Toggle form berdasarkan taskId
         resetCommentForm(); // Reset form komentar
+        // Pastikan input file direset secara manual jika perlu
+        const fileInput = document.getElementById(`attachment-${taskId}`) as HTMLInputElement;
+        if (fileInput) fileInput.value = ''; // Mengosongkan input file secara manual
     };
 
     const submitComment = (e: FormEvent, taskId: number) => {
         e.preventDefault();
-        sendComment(route('comments.store', taskId), { // tasks/{task}/comments
-            content: commentData.content, // Kirim konten komentar
+        sendComment(route('comments.store', taskId), {
+            content: commentData.content,
+            attachment: commentData.attachment, // <<< Kirim file attachment
+            forceFormData: true, // <<< PENTING: Untuk memastikan data dikirim sebagai FormData
             onSuccess: () => {
                 alert('Komentar berhasil ditambahkan!');
                 setShowCommentForm(null); // Tutup form komentar
@@ -256,15 +260,15 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
 
     const deleteComment = (commentId: number) => {
         if (confirm('Yakin ingin menghapus komentar ini?')) {
-            sendDeleteTask(route('comments.destroy', commentId), { // comments/{comment}
-                onSuccess: () => {
-                    alert('Komentar berhasil dihapus!');
-                },
-                onError: (errors) => {
-                    console.error('Gagal menghapus komentar:', errors);
-                    alert('Gagal menghapus komentar. Silakan coba lagi.');
-                }
-            });
+            // Menggunakan sendDeleteTask karena sudah didefinisikan sebagai useForm().delete
+            // Jika Anda ingin terpisah, bisa buat useForm() baru: const { delete: sendDeleteComment } = useForm();
+            sendDeleteTask(route('comments.destroy', commentId), {
+                onSuccess: () => { alert('Komentar berhasil dihapus!'); },
+                onError: (errors) => { console.error('Gagal menghapus komentar:', errors); alert('Gagal menghapus komentar. Silakan coba lagi.'); }
+            }
+            // Tambahkan onFinish untuk reset processing state jika diperlukan
+            // onFinish: () => { /* ... */ }
+            );
         }
     };
     // === AKHIR KOMENTAR ===
@@ -373,6 +377,15 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
                             <div key={comment.id} className="bg-gray-100 rounded-md p-2">
                                 <p className="text-gray-800 text-xs font-semibold">{comment.user.name} <span className="font-normal text-gray-500">({new Date(comment.created_at).toLocaleDateString()})</span></p>
                                 <p className="text-gray-700 text-sm mt-1">{comment.content}</p>
+                                {/* Tampilkan link attachment jika ada */}
+                                {comment.attachment_path && ( // Cek properti attachment_path
+                                    <p className="mt-1 text-xs text-blue-600 hover:underline">
+                                        {/* Gunakan comment.attachment_url jika Anda membuat accessor di model */}
+                                        <a href={`/storage/${comment.attachment_path}`} target="_blank" rel="noopener noreferrer">
+                                            Unduh Attachment
+                                        </a>
+                                    </p>
+                                )}
                                 {/* Opsi untuk menghapus komentar (jika diizinkan Policy) */}
                                 {(hasRole('admin') || hasRole('manajer proyek') || actualUser?.id === comment.user_id) && (
                                     <button
@@ -409,6 +422,24 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                     ></textarea>
                     <InputError message={commentErrors.content} className="mt-1" />
+
+                    {/* Input untuk Lampiran File */}
+                    <div className="mt-2">
+                        <InputLabel htmlFor={`attachment-${task.id}`} value="Lampirkan File (Max 2MB)" className="mb-1"/>
+                        <input
+                            id={`attachment-${task.id}`}
+                            type="file"
+                            onChange={(e) => setCommentData('attachment', e.target.files ? e.target.files[0] : null)}
+                            className="block w-full text-sm text-gray-500
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-md file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-indigo-50 file:text-indigo-700
+                                hover:file:bg-indigo-100"
+                        />
+                        <InputError message={commentErrors.attachment} className="mt-1" />
+                    </div>
+
                     <div className="flex justify-end mt-2 space-x-2">
                         <SecondaryButton onClick={() => toggleCommentForm(task.id)} type="button" className="text-xs">Batal</SecondaryButton>
                         <PrimaryButton type="submit" disabled={commentProcessing} className="text-xs">
@@ -423,6 +454,7 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
     return (
         <AuthenticatedSidebarLayout
             user={actualUser}
+            title={project.name}
         >
             <Head title={project.name} />
 
