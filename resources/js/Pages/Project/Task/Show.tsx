@@ -423,7 +423,6 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
     return (
         <AuthenticatedSidebarLayout
             user={actualUser}
-            title={project.name}
         >
             <Head title={project.name} />
 
