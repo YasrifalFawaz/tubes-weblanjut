@@ -69,7 +69,7 @@ class ProjectController extends Controller
     {
         Gate::authorize('view', $project); // Otorisasi: Hanya yang diizinkan policy yang bisa view
 
-        $project->load(['user', 'tasks.user', 'assignedUsers']); // Muat assignedUsers untuk ditampilkan di detail
+        $project->load(['user', 'tasks.user', 'tasks.comments.user', 'assignedUsers']); // Muat assignedUsers untuk ditampilkan di detail
 
         $user = Auth::user();
         // Jika user bukan admin/manajer proyek, filter tugas

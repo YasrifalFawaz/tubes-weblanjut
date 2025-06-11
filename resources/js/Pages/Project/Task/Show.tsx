@@ -1,7 +1,7 @@
 // resources/js/Pages/Project/Task/Show.tsx
 import React, { useState, FormEvent, useEffect } from 'react';
 import AuthenticatedSidebarLayout from '@/Pages/Layouts/AuthenticatedSidebarLayout';
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react'; // Pastikan 'router' diimpor
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
@@ -10,7 +10,21 @@ import InputError from '@/Components/InputError';
 import Modal from '@/Components/Modal';
 import { User } from '@/types';
 
-// --- Interfaces (Tetap sama) ---
+// --- Interfaces ---
+// Definisi Comment Interface
+interface Comment {
+    id: number;
+    task_id: number;
+    user_id: number;
+    user: { // User yang membuat komentar
+        id: number;
+        name: string;
+    };
+    content: string;
+    created_at: string;
+    updated_at: string;
+}
+
 interface Task {
     id: number;
     name: string;
@@ -24,6 +38,7 @@ interface Task {
     status: 'to_do' | 'in_progress' | 'finished';
     created_at: string;
     updated_at: string;
+    comments: Comment[]; // <<< TAMBAHKAN KOMENTAR DI SINI >>>
 }
 
 interface AssignedUser {
@@ -54,7 +69,7 @@ interface ShowProps {
 }
 
 const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
-    // --- Otorisasi dan Peran (Tetap sama) ---
+    // --- Otorisasi dan Peran ---
     const actualUser = auth.user.data;
     const userRoles = actualUser?.roles || [];
     const hasRole = (roleName: string) => userRoles.includes(roleName);
@@ -120,6 +135,20 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
     // useForm untuk menghapus tugas
     const { delete: sendDeleteTask, processing: deleteTaskProcessing } = useForm();
 
+    // === START KOMENTAR: State dan Form untuk Menambah Komentar ===
+    const [showCommentForm, setShowCommentForm] = useState<number | null>(null); // ID tugas yang form komentarnya terbuka
+    const {
+        data: commentData,
+        setData: setCommentData,
+        post: sendComment,
+        processing: commentProcessing,
+        errors: commentErrors,
+        reset: resetCommentForm
+    } = useForm({
+        content: '',
+    });
+    // === AKHIR KOMENTAR ===
+
 
     // --- Handlers ---
     const submitAssignment = (e: FormEvent) => {
@@ -181,8 +210,14 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
                 description: editTaskData.description,
                 user_id: editTaskData.user_id,
                 status: editTaskData.status,
-                onSuccess: () => { alert('Tugas berhasil diperbarui!'); closeEditTaskModal(); },
-                onError: (errors: any) => { console.error('Gagal memperbarui tugas:', errors); alert('Gagal memperbarui tugas. Silakan coba lagi.'); }
+                onSuccess: () => {
+                    alert('Tugas berhasil diperbarui!');
+                    closeEditTaskModal();
+                },
+                onError: (errors: any) => {
+                    console.error('Gagal memperbarui tugas:', errors);
+                    alert('Gagal memperbarui tugas. Silakan coba lagi.');
+                }
             }
         );
     };
@@ -196,96 +231,113 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
         }
     };
 
-    // --- Handlers Drag & Drop Manual ---
-    // Dipanggil saat item mulai diseret
-    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: Task) => {
-        setDraggedTaskId(task.id); // Simpan ID tugas yang diseret
-        // Mengatur data yang akan ditransfer selama operasi drag
-        e.dataTransfer.setData('text/plain', task.id.toString());
-        e.dataTransfer.effectAllowed = 'move'; // Menentukan efek kursor (memindahkan)
-
-        // Menambahkan gaya visual feedback pada item yang diseret
-        e.currentTarget.classList.add('opacity-50', 'border-indigo-500', 'shadow-xl');
+    // === START KOMENTAR: Handlers Komentar ===
+    const toggleCommentForm = (taskId: number) => {
+        setShowCommentForm(showCommentForm === taskId ? null : taskId); // Toggle form berdasarkan taskId
+        resetCommentForm(); // Reset form komentar
     };
 
-    // Dipanggil saat item diseret melewati area yang bisa menerima drop
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault(); // <<< PENTING: Mencegah perilaku default untuk mengizinkan drop >>>
-        e.dataTransfer.dropEffect = 'move'; // Mengubah kursor saat drag di atas area drop
-        // Menambahkan gaya visual feedback pada area drop
-        e.currentTarget.classList.add('bg-indigo-50', 'border-indigo-400', 'border-dashed');
-    };
-
-    // Dipanggil saat item yang diseret meninggalkan area drop
-    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-        // Menghapus gaya visual feedback saat kursor meninggalkan area drop
-        e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400', 'border-dashed');
-    };
-
-    // Dipanggil saat item dilepaskan di area drop
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetStatus: 'to_do' | 'in_progress' | 'finished') => {
+    const submitComment = (e: FormEvent, taskId: number) => {
         e.preventDefault();
-        e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400', 'border-dashed'); // Hapus gaya feedback
-
-        const taskId = parseInt(e.dataTransfer.getData('text/plain')); // Ambil ID tugas yang diseret
-        const draggedTask = tasks.find(task => task.id === taskId); // Temukan tugas di state lokal
-
-        // Pastikan tugas valid dan statusnya tidak sama
-        if (!draggedTask || draggedTask.status === targetStatus) {
-            setDraggedTaskId(null); // Bersihkan state meskipun drop tidak valid
-            return;
-        }
-
-        // --- Optimistic UI Update: Perbarui state frontend segera ---
-        // Ini membuat UI responsif tanpa menunggu response dari server.
-        const originalTasks = [...tasks]; // Simpan state asli untuk rollback jika error
-        const updatedTasks = tasks.map(task =>
-            task.id === taskId ? { ...task, status: targetStatus } : task
-        );
-        setTasks(updatedTasks); // Perbarui state React
-
-        // Kirim perubahan status ke backend
-        // Menggunakan router.put langsung dari Inertia.js untuk update
-        router.put(route('tasks.update-status', taskId), { status: targetStatus }, {
+        sendComment(route('comments.store', taskId), { // tasks/{task}/comments
+            content: commentData.content, // Kirim konten komentar
             onSuccess: () => {
-                console.log(`Status tugas ${draggedTask.name} berhasil diubah menjadi ${targetStatus}`);
-                // Inertia secara otomatis akan me-refresh props setelah PUT berhasil
-                // State 'tasks' akan diperbarui kembali oleh useEffect di atas
+                alert('Komentar berhasil ditambahkan!');
+                setShowCommentForm(null); // Tutup form komentar
+                resetCommentForm();
+                // Inertia akan secara otomatis me-refresh props setelah POST, jadi `comments` akan terupdate
             },
             onError: (errors) => {
-                console.error('Gagal update status tugas:', errors);
-                alert('Gagal update status tugas. Silakan coba lagi.');
-                // Rollback UI jika ada error dari backend
-                setTasks(originalTasks); // Kembalikan ke state sebelumnya jika update gagal
-            },
-            onFinish: () => {
-                // Hapus gaya yang diterapkan saat dragstart pada elemen yang diseret
-                // Ini perlu dilakukan pada elemen yang diseret, bukan target drop
-                const draggedElement = document.querySelector(`[data-task-id="${taskId}"]`);
-                if (draggedElement) {
-                    draggedElement.classList.remove('opacity-50', 'border-indigo-500', 'shadow-xl');
-                }
-                setDraggedTaskId(null); // Bersihkan state draggedTaskId
+                console.error('Gagal menambah komentar:', errors);
+                alert('Gagal menambah komentar. Silakan coba lagi.');
             }
         });
     };
 
-    // Dipanggil saat operasi drag berakhir (baik berhasil drop atau tidak)
-    const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
-        // Hapus gaya visual feedback dari item yang diseret
-        e.currentTarget.classList.remove('opacity-50', 'border-indigo-500', 'shadow-xl');
-        setDraggedTaskId(null); // Pastikan state dibersihkan
+    const deleteComment = (commentId: number) => {
+        if (confirm('Yakin ingin menghapus komentar ini?')) {
+            sendDeleteTask(route('comments.destroy', commentId), { // comments/{comment}
+                onSuccess: () => {
+                    alert('Komentar berhasil dihapus!');
+                },
+                onError: (errors) => {
+                    console.error('Gagal menghapus komentar:', errors);
+                    alert('Gagal menghapus komentar. Silakan coba lagi.');
+                }
+            });
+        }
+    };
+    // === AKHIR KOMENTAR ===
+
+    // --- Handlers Drag & Drop Manual ---
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: Task) => {
+        setDraggedTaskId(task.id);
+        e.dataTransfer.setData('text/plain', task.id.toString());
+        e.dataTransfer.effectAllowed = 'move';
+        e.currentTarget.classList.add('opacity-50', 'border-indigo-500', 'shadow-xl');
     };
 
-    // Fungsi untuk merender setiap kartu tugas (diperbarui untuk atribut drag)
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        e.currentTarget.classList.add('bg-indigo-50', 'border-indigo-400', 'border-dashed');
+    };
+
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400', 'border-dashed');
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetStatus: 'to_do' | 'in_progress' | 'finished') => {
+        e.preventDefault();
+        e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400', 'border-dashed');
+
+        const taskId = parseInt(e.dataTransfer.getData('text/plain'));
+        const draggedTask = tasks.find(task => task.id === taskId);
+
+        if (!draggedTask || draggedTask.status === targetStatus) {
+            setDraggedTaskId(null);
+            return;
+        }
+
+        const originalTasks = [...tasks];
+        const updatedTasks = tasks.map(task =>
+            task.id === taskId ? { ...task, status: targetStatus } : task
+        );
+        setTasks(updatedTasks);
+
+        router.put(route('tasks.update-status', taskId), { status: targetStatus }, {
+            onSuccess: () => {
+                console.log(`Status tugas ${draggedTask.name} berhasil diubah menjadi ${targetStatus}`);
+            },
+            onError: (errors) => {
+                console.error('Gagal update status tugas:', errors);
+                alert('Gagal update status tugas. Silakan coba lagi.');
+                setTasks(originalTasks);
+            },
+            onFinish: () => {
+                const draggedElement = document.querySelector(`[data-task-id="${taskId}"]`);
+                if (draggedElement) {
+                    draggedElement.classList.remove('opacity-50', 'border-indigo-500', 'shadow-xl');
+                }
+                setDraggedTaskId(null);
+            }
+        });
+    };
+
+    const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+        e.currentTarget.classList.remove('opacity-50', 'border-indigo-500', 'shadow-xl');
+        setDraggedTaskId(null);
+    };
+
+    // Fungsi untuk merender setiap kartu tugas (diperbarui untuk komentar dan drag)
     const renderTaskCard = (task: Task) => (
         <div
             key={task.id}
-            draggable="true" // <<< PENTING: Membuat elemen bisa diseret >>>
-            onDragStart={(e) => handleDragStart(e, task)} // Event saat drag dimulai
-            onDragEnd={handleDragEnd} // Event saat drag selesai
+            draggable="true"
+            onDragStart={(e) => handleDragStart(e, task)}
+            onDragEnd={handleDragEnd}
             data-task-id={task.id} // Custom attribute untuk identifikasi di dragEnd
-            className="bg-white border border-gray-200 rounded-lg p-4 mb-3 shadow-md cursor-grab" // Tambah cursor-grab
+            className="bg-white border border-gray-200 rounded-lg p-4 mb-3 shadow-md cursor-grab"
         >
             <h5 className="font-semibold text-gray-800 text-md">{task.name}</h5>
             <p className="text-gray-600 text-sm mt-1">{task.description}</p>
@@ -311,6 +363,60 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
                     </>
                 )}
             </div>
+
+            {/* Bagian Tampilan Komentar */}
+            {task.comments && task.comments.length > 0 && (
+                <div className="mt-4 border-t border-gray-200 pt-3">
+                    <h6 className="font-semibold text-gray-700 text-sm mb-2">Komentar ({task.comments.length})</h6>
+                    <div className="space-y-2 max-h-24 overflow-y-auto pr-2">
+                        {task.comments.map(comment => (
+                            <div key={comment.id} className="bg-gray-100 rounded-md p-2">
+                                <p className="text-gray-800 text-xs font-semibold">{comment.user.name} <span className="font-normal text-gray-500">({new Date(comment.created_at).toLocaleDateString()})</span></p>
+                                <p className="text-gray-700 text-sm mt-1">{comment.content}</p>
+                                {/* Opsi untuk menghapus komentar (jika diizinkan Policy) */}
+                                {(hasRole('admin') || hasRole('manajer proyek') || actualUser?.id === comment.user_id) && (
+                                    <button
+                                        onClick={() => deleteComment(comment.id)} // Menggunakan handler deleteComment
+                                        className="text-red-400 hover:text-red-600 text-xs mt-1"
+                                    >
+                                        Hapus
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Tombol untuk membuka/menutup form komentar */}
+            <div className="mt-3 flex justify-end">
+                <SecondaryButton
+                    onClick={() => toggleCommentForm(task.id)}
+                    className="text-xs py-1 px-2"
+                >
+                    {showCommentForm === task.id ? 'Tutup Komentar' : 'Tambah Komentar'}
+                </SecondaryButton>
+            </div>
+
+            {/* Form Komentar (muncul jika showCommentForm sesuai dengan task.id) */}
+            {showCommentForm === task.id && (
+                <form onSubmit={(e) => submitComment(e, task.id)} className="mt-3">
+                    <textarea
+                        value={commentData.content}
+                        onChange={(e) => setCommentData('content', e.target.value)}
+                        placeholder="Tulis komentar..."
+                        rows={3}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                    ></textarea>
+                    <InputError message={commentErrors.content} className="mt-1" />
+                    <div className="flex justify-end mt-2 space-x-2">
+                        <SecondaryButton onClick={() => toggleCommentForm(task.id)} type="button" className="text-xs">Batal</SecondaryButton>
+                        <PrimaryButton type="submit" disabled={commentProcessing} className="text-xs">
+                            {commentProcessing ? 'Mengirim...' : 'Kirim Komentar'}
+                        </PrimaryButton>
+                    </div>
+                </form>
+            )}
         </div>
     );
 
