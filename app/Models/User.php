@@ -8,7 +8,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles; 
-use Tymon\JWTAuth\Contracts\JWTSubject;// Pastikan ini diimpor untuk Spatie Laravel-Permission
+use Tymon\JWTAuth\Contracts\JWTSubject;
+use Illuminate\Database\Eloquent\Relations\HasMany; // Untuk proyek yang dibuat
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;// Pastikan ini diimpor untuk Spatie Laravel-Permission
 
 /**
  * @mixin \Spatie\Permission\Traits\HasRoles // <--- Tambahkan baris ini untuk membantu IDE (Intelephense)
@@ -58,17 +60,19 @@ class User extends Authenticatable implements JWTSubject
         'password' => 'hashed',
     ];
 
-    // Jika Anda memiliki kolom tambahan di tabel 'users' untuk peran
-    // dan tidak menggunakan Spatie, Anda mungkin memiliki sesuatu seperti:
-    // protected $casts = [
-    //     'roles' => 'array', // Jika menyimpan peran sebagai JSON array
-    // ];
-    // Atau jika hanya satu peran:
-    // protected $fillable = [..., 'role'];
+    public function projectsCreated(): HasMany
+    {
+        return $this->hasMany(Project::class, 'user_id');
+    }
 
-    // Jika Anda ingin menambahkan method kustom, Anda bisa menuliskannya di sini
-    // public function isAdmin(): bool
-    // {
-    //     return $this->hasRole('admin');
-    // }
+     public function assignedProjects(): BelongsToMany // <<< TAMBAHKAN METODE INI
+    {
+        return $this->belongsToMany(Project::class, 'project_user', 'user_id', 'project_id')->withTimestamps();
+    }
+
+    public function tasksAssigned(): HasMany
+    {
+        return $this->hasMany(Task::class, 'user_id');
+    }
+
 }
