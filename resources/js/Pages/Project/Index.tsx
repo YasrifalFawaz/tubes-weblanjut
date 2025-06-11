@@ -103,7 +103,7 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
         });
     };
 
-    // SOLUSI 1: Menggunakan router.put dengan preserveState: false
+    // SOLUSI 1: Menggunakan router.put dengan preserveState: false asd
     const markAsCompleted = (projectId: number) => {
         if (confirm('Yakin ingin mengubah status proyek ini menjadi selesai?')) {
             setUpdatingStatusId(projectId);
