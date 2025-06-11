@@ -10,6 +10,12 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import SecondaryButton from '@/Components/SecondaryButton';
 
+// Tambahkan interface untuk Anggota Tim yang Ditugaskan
+interface AssignedUser {
+    id: number;
+    name: string;
+}
+
 interface Project {
     id: number;
     name: string;
@@ -20,6 +26,9 @@ interface Project {
         name: string;
     };
     status: 'progress' | 'completed';
+    // === START PERUBAHAN INTERFACE ===
+    assigned_users?: AssignedUser[]; // Tambahkan properti ini
+    // === AKHIR PERUBAHAN INTERFACE ===
 }
 
 interface IndexProps extends PageProps {
@@ -45,8 +54,11 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
         name: '',
         description: '',
     });
-    
+
     const { delete: destroyProject } = useForm();
+
+    // Ini adalah useForm untuk status update
+    const { processing: statusProcessing } = useForm();
 
     const {
         data: editData,
@@ -103,13 +115,13 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
         });
     };
 
-    // SOLUSI 1: Menggunakan router.put dengan preserveState: false asd
+    // Fungsi untuk mengubah status proyek
     const markAsCompleted = (projectId: number) => {
         if (confirm('Yakin ingin mengubah status proyek ini menjadi selesai?')) {
             setUpdatingStatusId(projectId);
-            
-            router.put(route('projects.update-status', projectId), 
-                { status: 'completed' }, 
+
+            router.put(route('projects.update-status', projectId),
+                { status: 'completed' },
                 {
                     preserveState: false,
                     preserveScroll: true,
@@ -133,9 +145,9 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
     const markAsProgress = (projectId: number) => {
         if (confirm('Yakin ingin mengubah status proyek ini menjadi dalam progress?')) {
             setUpdatingStatusId(projectId);
-            
-            router.put(route('projects.update-status', projectId), 
-                { status: 'progress' }, 
+
+            router.put(route('projects.update-status', projectId),
+                { status: 'progress' },
                 {
                     preserveState: false,
                     preserveScroll: true,
@@ -156,56 +168,13 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
         }
     };
 
-    // SOLUSI 2: Alternatif menggunakan router.reload setelah update
-    const markAsCompletedAlt = (projectId: number) => {
-        if (confirm('Yakin ingin mengubah status proyek ini menjadi selesai?')) {
-            setUpdatingStatusId(projectId);
-            
-            router.put(route('projects.update-status', projectId), 
-                { status: 'completed' }, 
-                {
-                    onSuccess: () => {
-                        // Force reload data after success
-                        router.reload({
-                            only: ['projects'],
-                            preserveScroll: true,
-                            onSuccess: () => {
-                                setUpdatingStatusId(null);
-                            }
-                        });
-                    },
-                    onError: (errors) => {
-                        setUpdatingStatusId(null);
-                        alert('Gagal mengubah status proyek. Silakan coba lagi.');
-                    }
-                }
-            );
-        }
-    };
-
-    const markAsProgressAlt = (projectId: number) => {
-        if (confirm('Yakin ingin mengubah status proyek ini menjadi dalam progress?')) {
-            setUpdatingStatusId(projectId);
-            
-            router.put(route('projects.update-status', projectId), 
-                { status: 'progress' }, 
-                {
-                    onSuccess: () => {
-                        // Force reload data after success
-                        router.reload({
-                            only: ['projects'],
-                            preserveScroll: true,
-                            onSuccess: () => {
-                                setUpdatingStatusId(null);
-                            }
-                        });
-                    },
-                    onError: (errors) => {
-                        setUpdatingStatusId(null);
-                        alert('Gagal mengubah status proyek. Silakan coba lagi.');
-                    }
-                }
-            );
+    const deleteProject = (projectId: number) => {
+        if (confirm('Yakin ingin menghapus proyek ini?')) {
+            destroyProject(route('projects.destroy', projectId), {
+                onSuccess: () => {
+                    alert('Proyek berhasil dihapus!');
+                },
+            });
         }
     };
 
@@ -250,15 +219,20 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                             <ul className="divide-y divide-gray-200">
                                 {projects.map((project) => {
                                     const isUpdating = updatingStatusId === project.id;
-                                    
+
                                     return (
                                         <li key={project.id} className="py-4">
                                             <div className="flex justify-between items-start">
                                                 <div>
-                                                    <h4 className="text-md font-semibold">{project.name}</h4>
+                                                    <Link
+                                                        href={route('projects.show', project.id)}
+                                                        className="text-md font-semibold text-indigo-700 hover:underline"
+                                                    >
+                                                        <h4>{project.name}</h4>
+                                                    </Link>
                                                     <p className="text-sm text-gray-600">{project.description}</p>
                                                     <p className="text-xs text-gray-500 mt-1">
-                                                        Dibuat oleh: {project.user.name} | Status: 
+                                                        Dibuat oleh: {project.user.name} | Status:
                                                         <span className={`font-semibold ml-1 ${
                                                             project.status === 'completed' ? 'text-green-600' : 'text-yellow-600'
                                                         }`}>
@@ -266,9 +240,16 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                                                         </span>
                                                         {isUpdating && (
                                                             <span className="ml-2 text-blue-600 animate-pulse">
-                                                                (Sedang diperbarui...)
+                                                                (Memproses...)
                                                             </span>
                                                         )}
+                                                        {/* === START PERUBAHAN UNTUK MENAMPILKAN ANGGOTA TIM === */}
+                                                        {project.assigned_users && project.assigned_users.length > 0 && (
+                                                            <span className="ml-2 text-gray-700">
+                                                                | Ditugaskan: {project.assigned_users.map(u => u.name).join(', ')}
+                                                            </span>
+                                                        )}
+                                                        {/* === AKHIR PERUBAHAN UNTUK MENAMPILKAN ANGGOTA TIM === */}
                                                     </p>
                                                 </div>
 
@@ -282,7 +263,7 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                                                                 className={`text-xs border rounded px-2 py-1 transition-colors ${
                                                                     isUpdating
                                                                         ? 'text-gray-400 border-gray-300 cursor-not-allowed'
-                                                                        : 'text-green-600 border-green-400 hover:bg-green-50'
+                                                                        : 'text-indigo-600 border-indigo-400 hover:bg-indigo-50'
                                                                 }`}
                                                             >
                                                                 {isUpdating ? 'Memproses...' : 'Tandai Selesai'}
@@ -300,7 +281,7 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                                                                 {isUpdating ? 'Memproses...' : 'Tandai Progress'}
                                                             </button>
                                                         )}
-                                                        
+
                                                         <button
                                                             onClick={() => openEditProjectModal(project)}
                                                             disabled={isUpdating}
@@ -308,17 +289,9 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                                                         >
                                                             Edit
                                                         </button>
-                                                        
+
                                                         <button
-                                                            onClick={() => {
-                                                                if (confirm('Yakin ingin menghapus proyek ini?')) {
-                                                                    destroyProject(route('projects.destroy', project.id), {
-                                                                        onSuccess: () => {
-                                                                            alert('Proyek berhasil dihapus!');
-                                                                        },
-                                                                    });
-                                                                }
-                                                            }}
+                                                            onClick={() => deleteProject(project.id)}
                                                             disabled={isUpdating}
                                                             className="text-red-600 text-xs border border-red-400 rounded px-2 py-1 hover:bg-red-50 disabled:opacity-50"
                                                         >
@@ -335,6 +308,7 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                     </div>
                 </div>
             </div>
+
             {/* Modal Create Project */}
             <Modal show={showCreateProjectModal} onClose={closeCreateProjectModal}>
                 <form onSubmit={submitNewProject} className="p-6">
@@ -370,7 +344,7 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                     <div className="mt-6 flex justify-end">
                         <SecondaryButton onClick={closeCreateProjectModal}>Batal</SecondaryButton>
                         <PrimaryButton className="ms-3" disabled={processing}>
-                            {processing ? 'Menyimpan...' : 'Buat Proyek'}
+                            {processing ? 'Memproses...' : 'Buat Proyek'}
                         </PrimaryButton>
                     </div>
                 </form>
@@ -404,14 +378,14 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                             className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
                             rows={4}
                             onChange={(e) => setEditData('description', e.target.value)}
-                        />
+                        ></textarea>
                         <InputError message={editErrors.description} className="mt-2" />
                     </div>
 
                     <div className="mt-6 flex justify-end">
                         <SecondaryButton onClick={closeEditProjectModal}>Batal</SecondaryButton>
                         <PrimaryButton className="ms-3" disabled={editProcessing}>
-                            {editProcessing ? 'Menyimpan...' : 'Simpan Perubahan'}
+                            {editProcessing ? 'Memproses...' : 'Simpan Perubahan'}
                         </PrimaryButton>
                     </div>
                 </form>
