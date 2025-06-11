@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo; // Tambahkan ini
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Task extends Model
 {
@@ -14,7 +14,7 @@ class Task extends Model
         'name',
         'description',
         'user_id',
-        'projek_id', // Pastikan nama kolom di DB adalah 'projek_id' jika Anda menggunakan itu
+        'projek_id',
         'status',
     ];
 
@@ -31,6 +31,6 @@ class Task extends Model
      */
     public function project(): BelongsTo
     {
-        return $this->belongsTo(Project::class, 'projek_id'); // Gunakan 'projek_id' jika itu nama kolomnya
+        return $this->belongsTo(Project::class, 'projek_id'); // Foreign key 'projek_id'
     }
 }

@@ -33,11 +33,7 @@ Route::get('/dashboard', function () {
 
 // Rute umum untuk user login (Membutuhkan autentikasi)
 Route::middleware('auth')->group(function () {
-    // Project list (Viewable by all authenticated users)
     Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
-
-    // Project Detail & Task Board (Viewable by all authenticated users)
-    // PENTING: Posisikan rute ini di atas rute yang berpotensi konflik seperti projects/create atau projects/{id}/edit
     Route::get('/projects/{project}/task', [ProjectController::class, 'show'])->name('projects.show');
 
     // Profile Management Routes
@@ -51,32 +47,23 @@ Route::middleware('auth')->group(function () {
         Route::get('/tasks', function () {
             return Inertia::render('Task/Index'); // Asumsikan Task/Index.tsx ada di Pages/Task/
         })->name('tasks.index');
+        Route::post('/projects/{project}/tasks', [\App\Http\Controllers\TaskController::class, 'store'])->name('tasks.store');
+        Route::put('/tasks/{task}', [\App\Http\Controllers\TaskController::class, 'update'])->name('tasks.update');
+        Route::delete('/tasks/{task}', [\App\Http\Controllers\TaskController::class, 'destroy'])->name('tasks.destroy');
     });
 
-    // --- Rute Manajer Proyek Khusus ---
-    // Hanya Manajer Proyek yang bisa menugaskan anggota tim ke proyek
     Route::middleware('role:manajer proyek')->group(function () {
         Route::put('/projects/{id}/assign-users', [ProjectController::class, 'assignUsers'])->name('projects.assign-users'); // Menggunakan {id}
     });
 
-    // --- Rute Manajer Proyek dan Admin (Bersama) ---
-    // Mencakup Create, Store, Edit, Update, Delete untuk proyek
     Route::middleware('role:manajer proyek|admin')->group(function () {
-        // Project Creation
         Route::get('/projects/create', [ProjectController::class, 'create'])->name('projects.create');
         Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
-
-        // Project Editing/Updating (Menggunakan {id})
         Route::get('/projects/{id}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
         Route::put('/projects/{id}', [ProjectController::class, 'update'])->name('projects.update');
-
-        // Project Deletion (Menggunakan {id})
         Route::delete('/projects/{id}', [ProjectController::class, 'destroy'])->name('projects.destroy');
     });
 
-
-    // --- Rute Khusus Admin ---
-    // Mencakup Manajemen Pengguna DAN Pembaruan Status Proyek
     Route::middleware('role:admin')->group(function () {
         // User Management (Admin only) - Menggunakan prefix 'admin' dan name 'admin.'
         Route::prefix('admin')->name('admin.')->group(function () {
@@ -90,10 +77,8 @@ Route::middleware('auth')->group(function () {
             // Update Role khusus (Admin only)
             Route::put('/users/{user}/role', [UserController::class, 'updateRole'])->name('users.updateRole');
         });
-
-        // Project Status Update (Hanya Admin) - Menggunakan {project}
         Route::put('/projects/{project}/update-status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
     });
 });
 
-require __DIR__.'/auth.php'; // Mengimpor rute autentikasi Breeze
+require __DIR__.'/auth.php';
