@@ -1,7 +1,7 @@
 // resources/js/Pages/Project/Task/Show.tsx
 import React, { useState, FormEvent, useEffect } from 'react';
 import AuthenticatedSidebarLayout from '@/Pages/Layouts/AuthenticatedSidebarLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
@@ -10,7 +10,7 @@ import InputError from '@/Components/InputError';
 import Modal from '@/Components/Modal';
 import { User } from '@/types';
 
-// --- Interfaces ---
+// --- Interfaces (Tetap sama) ---
 interface Task {
     id: number;
     name: string;
@@ -54,21 +54,18 @@ interface ShowProps {
 }
 
 const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
-    // --- Otorisasi dan Peran ---
+    // --- Otorisasi dan Peran (Tetap sama) ---
     const actualUser = auth.user.data;
     const userRoles = actualUser?.roles || [];
     const hasRole = (roleName: string) => userRoles.includes(roleName);
     const canAssignUsers = hasRole('admin') || hasRole('manajer proyek');
 
-    // canCreateTasks harus sesuai dengan Policy Task@create
-    // Ini digunakan untuk menampilkan tombol "Buat Tugas Baru" di kolom To Do
     const canCreateTasks = canAssignUsers || (hasRole('anggota tim') && project.assigned_users.some(u => u.id === actualUser?.id));
-    // Untuk edit/delete per task, otorisasi akan diperiksa di Policy backend.
-    // Sementara, kita gunakan logika yang sama dengan canCreateTasks untuk tampilan tombol.
-    const canEditDeleteTasks = canCreateTasks;
+    const canEditDeleteTasks = canAssignUsers || (hasRole('anggota tim') && project.assigned_users.some(u => u.id === actualUser?.id));
 
     // --- State untuk Mengelola Tugas di Frontend ---
     const [tasks, setTasks] = useState<Task[]>(project.tasks);
+    const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null); // State untuk tugas yang sedang diseret
 
     // Effect untuk memperbarui state 'tasks' lokal setiap kali prop 'project.tasks' berubah dari Inertia
     useEffect(() => {
@@ -160,16 +157,10 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
         });
     };
 
-    // --- Perbaikan di openEditTaskModal dan submitEditTask ---
     const openEditTaskModal = (task: Task) => {
         setSelectedTask(task);
-        // Penting: Inisialisasi editTaskData dengan semua properti yang akan diedit
-        // Pastikan user_id dan status diinisialisasi dengan nilai yang benar
         setEditTaskData({
-            name: task.name,
-            description: task.description,
-            user_id: task.user_id.toString(), // Konversi ke string untuk elemen select
-            status: task.status,
+            name: task.name, description: task.description, user_id: task.user_id.toString(), status: task.status,
         });
         setShowEditTaskModal(true);
     };
@@ -183,51 +174,125 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
     const submitEditTask = (e: FormEvent) => {
         e.preventDefault();
         if (!selectedTask) return;
-        // Kirim data langsung sebagai objek kedua ke put, tanpa 'data:' wrapper
-        // Pastikan semua field yang ingin diupdate ada di sini
-        sendEditTaskUpdate(route('tasks.update', selectedTask.id), {
-                    data: {
-                        name: editTaskData.name,
-                        description: editTaskData.description,
-                        user_id: editTaskData.user_id,
-                        status: editTaskData.status,
-                    },
-                    onSuccess: () => {
-                        alert('Tugas berhasil diperbarui!');
-                        closeEditTaskModal();
-                    },
-                    onError: (errors) => {
-                        console.error('Gagal memperbarui tugas:', errors);
-                        alert('Gagal memperbarui tugas. Silakan coba lagi.');
-                    }
-                });
+        sendEditTaskUpdate(
+            route('tasks.update', selectedTask.id),
+            {
+                name: editTaskData.name,
+                description: editTaskData.description,
+                user_id: editTaskData.user_id,
+                status: editTaskData.status,
+                onSuccess: () => { alert('Tugas berhasil diperbarui!'); closeEditTaskModal(); },
+                onError: (errors: any) => { console.error('Gagal memperbarui tugas:', errors); alert('Gagal memperbarui tugas. Silakan coba lagi.'); }
+            }
+        );
     };
-    // --- Akhir Perbaikan Edit ---
 
     const deleteTask = (taskId: number) => {
         if (confirm('Yakin ingin menghapus tugas ini?')) {
             sendDeleteTask(route('tasks.destroy', taskId), {
-                onSuccess: () => {
-                    alert('Tugas berhasil dihapus!');
-                },
-                onError: (errors) => {
-                    console.error('Gagal menghapus tugas:', errors);
-                    alert('Gagal menghapus tugas. Silakan coba lagi.');
-                }
+                onSuccess: () => { alert('Tugas berhasil dihapus!'); },
+                onError: (errors) => { console.error('Gagal menghapus tugas:', errors); alert('Gagal menghapus tugas. Silakan coba lagi.'); }
             });
         }
     };
 
+    // --- Handlers Drag & Drop Manual ---
+    // Dipanggil saat item mulai diseret
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: Task) => {
+        setDraggedTaskId(task.id); // Simpan ID tugas yang diseret
+        // Mengatur data yang akan ditransfer selama operasi drag
+        e.dataTransfer.setData('text/plain', task.id.toString());
+        e.dataTransfer.effectAllowed = 'move'; // Menentukan efek kursor (memindahkan)
 
-    // Fungsi untuk merender setiap kartu tugas
+        // Menambahkan gaya visual feedback pada item yang diseret
+        e.currentTarget.classList.add('opacity-50', 'border-indigo-500', 'shadow-xl');
+    };
+
+    // Dipanggil saat item diseret melewati area yang bisa menerima drop
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault(); // <<< PENTING: Mencegah perilaku default untuk mengizinkan drop >>>
+        e.dataTransfer.dropEffect = 'move'; // Mengubah kursor saat drag di atas area drop
+        // Menambahkan gaya visual feedback pada area drop
+        e.currentTarget.classList.add('bg-indigo-50', 'border-indigo-400', 'border-dashed');
+    };
+
+    // Dipanggil saat item yang diseret meninggalkan area drop
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        // Menghapus gaya visual feedback saat kursor meninggalkan area drop
+        e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400', 'border-dashed');
+    };
+
+    // Dipanggil saat item dilepaskan di area drop
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetStatus: 'to_do' | 'in_progress' | 'finished') => {
+        e.preventDefault();
+        e.currentTarget.classList.remove('bg-indigo-50', 'border-indigo-400', 'border-dashed'); // Hapus gaya feedback
+
+        const taskId = parseInt(e.dataTransfer.getData('text/plain')); // Ambil ID tugas yang diseret
+        const draggedTask = tasks.find(task => task.id === taskId); // Temukan tugas di state lokal
+
+        // Pastikan tugas valid dan statusnya tidak sama
+        if (!draggedTask || draggedTask.status === targetStatus) {
+            setDraggedTaskId(null); // Bersihkan state meskipun drop tidak valid
+            return;
+        }
+
+        // --- Optimistic UI Update: Perbarui state frontend segera ---
+        // Ini membuat UI responsif tanpa menunggu response dari server.
+        const originalTasks = [...tasks]; // Simpan state asli untuk rollback jika error
+        const updatedTasks = tasks.map(task =>
+            task.id === taskId ? { ...task, status: targetStatus } : task
+        );
+        setTasks(updatedTasks); // Perbarui state React
+
+        // Kirim perubahan status ke backend
+        // Menggunakan router.put langsung dari Inertia.js untuk update
+        router.put(route('tasks.update-status', taskId), { status: targetStatus }, {
+            onSuccess: () => {
+                console.log(`Status tugas ${draggedTask.name} berhasil diubah menjadi ${targetStatus}`);
+                // Inertia secara otomatis akan me-refresh props setelah PUT berhasil
+                // State 'tasks' akan diperbarui kembali oleh useEffect di atas
+            },
+            onError: (errors) => {
+                console.error('Gagal update status tugas:', errors);
+                alert('Gagal update status tugas. Silakan coba lagi.');
+                // Rollback UI jika ada error dari backend
+                setTasks(originalTasks); // Kembalikan ke state sebelumnya jika update gagal
+            },
+            onFinish: () => {
+                // Hapus gaya yang diterapkan saat dragstart pada elemen yang diseret
+                // Ini perlu dilakukan pada elemen yang diseret, bukan target drop
+                const draggedElement = document.querySelector(`[data-task-id="${taskId}"]`);
+                if (draggedElement) {
+                    draggedElement.classList.remove('opacity-50', 'border-indigo-500', 'shadow-xl');
+                }
+                setDraggedTaskId(null); // Bersihkan state draggedTaskId
+            }
+        });
+    };
+
+    // Dipanggil saat operasi drag berakhir (baik berhasil drop atau tidak)
+    const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+        // Hapus gaya visual feedback dari item yang diseret
+        e.currentTarget.classList.remove('opacity-50', 'border-indigo-500', 'shadow-xl');
+        setDraggedTaskId(null); // Pastikan state dibersihkan
+    };
+
+    // Fungsi untuk merender setiap kartu tugas (diperbarui untuk atribut drag)
     const renderTaskCard = (task: Task) => (
-        <div key={task.id} className="bg-white border border-gray-200 rounded-lg p-4 mb-3 shadow-md">
+        <div
+            key={task.id}
+            draggable="true" // <<< PENTING: Membuat elemen bisa diseret >>>
+            onDragStart={(e) => handleDragStart(e, task)} // Event saat drag dimulai
+            onDragEnd={handleDragEnd} // Event saat drag selesai
+            data-task-id={task.id} // Custom attribute untuk identifikasi di dragEnd
+            className="bg-white border border-gray-200 rounded-lg p-4 mb-3 shadow-md cursor-grab" // Tambah cursor-grab
+        >
             <h5 className="font-semibold text-gray-800 text-md">{task.name}</h5>
             <p className="text-gray-600 text-sm mt-1">{task.description}</p>
             <p className="text-gray-500 text-xs mt-2">Ditugaskan ke: {task.user.name}</p>
             <p className="text-gray-500 text-xs">Status: {task.status.replace(/_/g, ' ').toUpperCase()}</p>
             <div className="flex justify-end space-x-2 mt-3">
-                {(canEditDeleteTasks && (actualUser?.id === task.user_id || hasRole('admin') || hasRole('manajer proyek'))) && (
+                {(canEditDeleteTasks && (actualUser?.id === task.user.id || hasRole('admin') || hasRole('manajer proyek'))) && (
                     <>
                         <button
                             onClick={() => openEditTaskModal(task)}
@@ -339,16 +404,21 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
                     )}
 
 
-                    {/* Task Board */}
+                    {/* Task Board Drag-and-Drop */}
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xl font-semibold text-gray-800">Daftar Tugas</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* To Do Column */}
-                        <div className="bg-white rounded-lg shadow-md p-4 min-h-[200px] border border-gray-200">
-                            <div className="flex justify-between items-center mb-4"> {/* Header dengan tombol */}
+                        <div
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, 'to_do')}
+                            onDragLeave={handleDragLeave}
+                            className="bg-gray-100 rounded-lg shadow-inner p-4 min-h-[200px] border border-gray-300"
+                        >
+                            <div className="flex justify-between items-center mb-4">
                                 <h4 className="font-bold text-lg text-gray-800">To Do ({toDoTasks.length})</h4>
-                                {canCreateTasks && ( // Tombol "Buat Tugas Baru" HANYA di kolom To Do
+                                {canCreateTasks && (
                                     <PrimaryButton onClick={openCreateTaskModal} className="flex items-center justify-center w-8 h-8 p-0">
                                         <svg className="w-5 h-5 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m0 0H6"></path>
@@ -366,7 +436,12 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
                         </div>
 
                         {/* In Progress Column */}
-                        <div className="bg-white rounded-lg shadow-md p-4 min-h-[200px] border border-gray-200">
+                        <div
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, 'in_progress')}
+                            onDragLeave={handleDragLeave}
+                            className="bg-gray-100 rounded-lg shadow-inner p-4 min-h-[200px] border border-gray-300"
+                        >
                             <h4 className="font-bold text-lg mb-4 text-gray-800">In Progress ({inProgressTasks.length})</h4>
                             {inProgressTasks.length === 0 ? (
                                 <p className="text-gray-500 text-sm">Tidak ada tugas dalam status In Progress.</p>
@@ -378,7 +453,12 @@ const Show: React.FC<ShowProps> = ({ auth, project, allUsers }) => {
                         </div>
 
                         {/* Finished Column */}
-                        <div className="bg-white rounded-lg shadow-md p-4 min-h-[200px] border border-gray-200">
+                        <div
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, 'finished')}
+                            onDragLeave={handleDragLeave}
+                            className="bg-gray-100 rounded-lg shadow-inner p-4 min-h-[200px] border border-gray-300"
+                        >
                             <h4 className="font-bold text-lg mb-4 text-gray-800">Finished ({finishedTasks.length})</h4>
                             {finishedTasks.length === 0 ? (
                                 <p className="text-gray-500 text-sm">Tidak ada tugas dalam status Finished.</p>
