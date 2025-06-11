@@ -113,4 +113,14 @@ class ProjectController extends Controller
             'new_status' => $project->status
         ]);
     }
+
+    public function show(Project $project) // Menggunakan Route Model Binding
+    {
+        $project->load(['user', 'tasks.user']); // Memuat project.user dan project.tasks.user
+
+        // --- PENTING: PASTIKAN INI MERENDER KOMPONEN YANG BENAR ---
+        return Inertia::render('Project/Task/Show', [ // Render dari lokasi baru
+            'project' => $project,
+        ]);
+    }
 }

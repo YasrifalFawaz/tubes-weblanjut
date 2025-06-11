@@ -255,7 +255,12 @@ const Index: React.FC<IndexProps> = ({ auth, projects }) => {
                                         <li key={project.id} className="py-4">
                                             <div className="flex justify-between items-start">
                                                 <div>
-                                                    <h4 className="text-md font-semibold">{project.name}</h4>
+                                                    <Link
+                                                    href={route('projects.show', project.id)} // Menggunakan nama rute projects.show
+                                                    className="text-md font-semibold text-indigo-700 hover:underline"
+                                                    >
+                                                    <h4>{project.name}</h4>
+                                                    </Link>
                                                     <p className="text-sm text-gray-600">{project.description}</p>
                                                     <p className="text-xs text-gray-500 mt-1">
                                                         Dibuat oleh: {project.user.name} | Status: 

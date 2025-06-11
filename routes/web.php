@@ -28,6 +28,7 @@ Route::get('/dashboard', function () {
 
 // Rute umum untuk user login
 Route::middleware('auth')->group(function () {
+    Route::get('/projects/{project}/task', [ProjectController::class, 'show'])->name('projects.show');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
