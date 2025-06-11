@@ -90,8 +90,5 @@ class TaskController extends Controller
             'status' => $request->status
         ]);
 
-        return response()->json(['message' => 'Status tugas berhasil diperbarui!', 'task_id' => $task->id, 'new_status' => $task->status]);
-        // Atau jika Anda ingin redirect Inertia untuk refresh props:
-        // return redirect()->back()->with('success', 'Status tugas berhasil diperbarui!');
     }
 }

@@ -1,11 +1,11 @@
-    <?php
+<?php
 
-    use App\Http\Controllers\ProfileController;
-    use Illuminate\Foundation\Application;
-    use Illuminate\Support\Facades\Route;
-    use Inertia\Inertia;
-    use App\Http\Controllers\Admin\UserController;
-    use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\ProfileController;
+use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\DashboardController;
 
 /*
@@ -19,13 +19,13 @@ use App\Http\Controllers\DashboardController;
 |
 */
 
-    // Halaman awal
-    Route::get('/', function () {
-        return Inertia::render('Welcome', [
-            'canLogin' => Route::has('login'),
-            'canRegister' => Route::has('register'),
-        ]);
-    });
+// Halaman awal
+Route::get('/', function () {
+    return Inertia::render('Welcome', [
+        'canLogin' => Route::has('login'),
+        'canRegister' => Route::has('register'),
+    ]);
+});
 
 // Dashboard setelah login
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
@@ -51,6 +51,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/tasks/{task}', [\App\Http\Controllers\TaskController::class, 'destroy'])->name('tasks.destroy');
         Route::post('/tasks/{task}/comments', [\App\Http\Controllers\CommentController::class, 'store'])->name('comments.store');
         Route::delete('/comments/{comment}', [\App\Http\Controllers\CommentController::class, 'destroy'])->name('comments.destroy');
+        Route::put('/tasks/{task}/update-status', [\App\Http\Controllers\TaskController::class, 'updateStatus'])->name('tasks.update-status');
     });
 
     Route::middleware('role:manajer proyek')->group(function () {
