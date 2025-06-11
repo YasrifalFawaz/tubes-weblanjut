@@ -43,9 +43,9 @@ php artisan key:generate
 php artisan jwt:secret
 
 ## Menjalankan Projek
--npm run dev
+- npm run dev
 <h3>Akses di browser lelaui</h3>
--tubes-weblanjut.test
+-t ubes-weblanjut.test
 
 ## Account Testing
 - Admin</br>
