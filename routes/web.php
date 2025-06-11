@@ -45,11 +45,13 @@ Route::middleware('auth')->group(function () {
     // Tasks (Viewable by Anggota Tim, Manajer Proyek, Admin)
     Route::middleware('role:anggota tim|manajer proyek|admin')->group(function () {
         Route::get('/tasks', function () {
-            return Inertia::render('Task/Index'); // Asumsikan Task/Index.tsx ada di Pages/Task/
+            return Inertia::render('Task/Index');
         })->name('tasks.index');
         Route::post('/projects/{project}/tasks', [\App\Http\Controllers\TaskController::class, 'store'])->name('tasks.store');
         Route::put('/tasks/{task}', [\App\Http\Controllers\TaskController::class, 'update'])->name('tasks.update');
         Route::delete('/tasks/{task}', [\App\Http\Controllers\TaskController::class, 'destroy'])->name('tasks.destroy');
+        Route::post('/tasks/{task}/comments', [\App\Http\Controllers\CommentController::class, 'store'])->name('comments.store');
+        Route::delete('/comments/{comment}', [\App\Http\Controllers\CommentController::class, 'destroy'])->name('comments.destroy');
     });
 
     Route::middleware('role:manajer proyek')->group(function () {
@@ -61,7 +63,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/projects', [ProjectController::class, 'store'])->name('projects.store');
         Route::get('/projects/{id}/edit', [ProjectController::class, 'edit'])->name('projects.edit');
         Route::put('/projects/{id}', [ProjectController::class, 'update'])->name('projects.update');
-        Route::delete('/projects/{id}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+        Route::put('/projects/{project}/update-status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
     });
 
     Route::middleware('role:admin')->group(function () {
@@ -76,8 +78,9 @@ Route::middleware('auth')->group(function () {
 
             // Update Role khusus (Admin only)
             Route::put('/users/{user}/role', [UserController::class, 'updateRole'])->name('users.updateRole');
+            Route::delete('/projects/{id}', [ProjectController::class, 'destroy'])->name('projects.destroy');
         });
-        Route::put('/projects/{project}/update-status', [ProjectController::class, 'updateStatus'])->name('projects.update-status');
+        
     });
 });
 

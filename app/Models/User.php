@@ -75,4 +75,9 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasMany(Task::class, 'user_id');
     }
 
+    public function comments(): HasMany // <<< TAMBAHKAN METODE INI
+    {
+        return $this->hasMany(Comment::class);
+    }
+
 }
