@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\DashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,9 +28,7 @@ Route::get('/', function () {
 });
 
 // Dashboard setelah login
-Route::get('/dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
 
 // Rute umum untuk user login (Membutuhkan autentikasi)
 Route::middleware('auth')->group(function () {
