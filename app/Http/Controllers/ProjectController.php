@@ -3,16 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\Project;
-use App\Models\User; // <<< Pastikan ini diimpor untuk mengambil daftar user
+use App\Models\User; // Pastikan ini diimpor untuk mengambil daftar user
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Gate; // <<< TAMBAHKAN INI UNTUK POLICY
+use Illuminate\Support\Facades\Gate; // Pastikan ini diimpor untuk Policy
 
 class ProjectController extends Controller
 {
-    // --- Metode index: Memfilter proyek berdasarkan peran dan penugasan ---
+    /**
+     * Display a listing of the projects.
+     */
     public function index()
     {
         $user = Auth::user();
@@ -30,14 +32,18 @@ class ProjectController extends Controller
         ]);
     }
 
-    // Metode create
+    /**
+     * Show the form for creating a new project.
+     */
     public function create()
     {
         Gate::authorize('create', Project::class); // Otorisasi: Hanya yang diizinkan policy yang bisa create
         return Inertia::render('Project/Create');
     }
 
-    // Metode store
+    /**
+     * Store a newly created project in storage.
+     */
     public function store(Request $request)
     {
         Gate::authorize('create', Project::class); // Otorisasi
@@ -56,10 +62,42 @@ class ProjectController extends Controller
         return redirect()->route('projects.index')->with('success', 'Proyek berhasil dibuat!');
     }
 
-    // Metode edit
-    public function edit(Project $project) // Menggunakan Route Model Binding
+    /**
+     * Display the specified project with its tasks.
+     */
+    public function show(Project $project) // Menggunakan Route Model Binding ($project)
     {
+        Gate::authorize('view', $project); // Otorisasi: Hanya yang diizinkan policy yang bisa view
+
+        $project->load(['user', 'tasks.user', 'tasks.comments.user', 'assignedUsers']); // Muat assignedUsers untuk ditampilkan di detail
+
+        $user = Auth::user();
+        // Jika user bukan admin/manajer proyek, filter tugas
+        if (!$user->hasRole('admin') && !$user->hasRole('manajer proyek')) {
+            $project->setRelation('tasks', $project->tasks->filter(function($task) use ($user, $project) {
+                // User bisa melihat tugas jika tugas ditugaskan padanya ATAU
+                // jika dia adalah anggota tim yang ditugaskan ke proyek ini
+                return $user->id === $task->user_id || $project->assignedUsers->contains($user->id);
+            }));
+        }
+
+        // Kirim juga daftar semua user ke frontend untuk form penugasan di halaman show
+        $allUsers = User::select('id', 'name')->get();
+
+        return Inertia::render('Project/Task/Show', [
+            'project' => $project,
+            'allUsers' => $allUsers, // Kirim daftar semua user
+        ]);
+    }
+
+    /**
+     * Show the form for editing the specified project.
+     */
+    public function edit($id) // Menggunakan $id sesuai rute
+    {
+        $project = Project::findOrFail($id); // Cari project secara manual
         Gate::authorize('update', $project); // Otorisasi: Hanya yang diizinkan policy yang bisa update
+
         $project->load('assignedUsers'); // Muat assigned users untuk form edit
         $allUsers = User::select('id', 'name')->get(); // Ambil semua user untuk dropdown penugasan
 
@@ -69,10 +107,14 @@ class ProjectController extends Controller
         ]);
     }
 
-    // Metode update
-    public function update(Request $request, Project $project) // Menggunakan Route Model Binding
+    /**
+     * Update the specified project in storage.
+     */
+    public function update(Request $request, $id) // Menggunakan $id sesuai rute
     {
+        $project = Project::findOrFail($id); // Cari project secara manual
         Gate::authorize('update', $project); // Otorisasi
+
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -86,22 +128,28 @@ class ProjectController extends Controller
         return redirect()->route('projects.index')->with('success', 'Proyek berhasil diperbarui!');
     }
 
-    // Metode destroy
-    public function destroy(Project $project) // Menggunakan Route Model Binding
+    /**
+     * Remove the specified project from storage.
+     */
+    public function destroy($id) // Menggunakan $id sesuai rute
     {
+        $project = Project::findOrFail($id); // Cari project secara manual
         Gate::authorize('delete', $project); // Otorisasi
+
         $project->delete();
 
         return redirect()->route('projects.index')->with('success', 'Proyek berhasil dihapus!');
     }
 
-    // Metode updateStatus
-    public function updateStatus(Request $request, Project $project)
+    /**
+     * Update the status of a project.
+     */
+    public function updateStatus(Request $request, Project $project) // Menggunakan Route Model Binding ($project)
     {
         Gate::authorize('updateStatus', $project); // Otorisasi: Hanya admin yang bisa update status
 
         $request->validate([
-            'status' => 'required|in:progress,completed',
+            'status' => ['required', 'in:progress,completed'],
         ]);
 
         Log::info('Updating project status', [
@@ -139,40 +187,13 @@ class ProjectController extends Controller
         }
     }
 
-    // Metode show
-    public function show(Project $project) // Menggunakan Route Model Binding
-    {
-        Gate::authorize('view', $project); // Otorisasi: Hanya yang diizinkan policy yang bisa view
-
-        $project->load(['user', 'tasks.user', 'assignedUsers']); // Muat assignedUsers untuk ditampilkan di detail
-
-        $user = Auth::user();
-        if (!$user->hasRole('admin') && !$user->hasRole('manajer proyek')) {
-            // Jika user bukan admin/manajer proyek, filter tugas berdasarkan penugasan
-            $project->setRelation('tasks', $project->tasks->filter(function($task) use ($user, $project) {
-                // User bisa melihat tugas jika tugas ditugaskan padanya ATAU
-                // jika dia adalah anggota tim yang ditugaskan ke proyek ini
-                return $user->id === $task->user_id || $project->assignedUsers->contains($user->id);
-            }));
-        }
-
-        // Kirim juga daftar semua user ke frontend untuk form penugasan di halaman show
-        $allUsers = User::select('id', 'name')->get();
-
-        return Inertia::render('Project/Task/Show', [
-            'project' => $project,
-            'allUsers' => $allUsers, // Kirim daftar semua user
-        ]);
-    }
-
-
     /**
      * Sync assigned users to a project.
      */
-    public function assignUsers(Request $request, Project $project)
+    public function assignUsers(Request $request, $id) // Menggunakan $id sesuai rute
     {
-        // Hanya Admin dan Manajer Proyek yang bisa assign user
-        Gate::authorize('update', $project); // Menggunakan policy 'update' sebagai contoh otorisasi
+        $project = Project::findOrFail($id); // Cari project secara manual
+        Gate::authorize('update', $project); // Otorisasi: Menggunakan policy 'update' sebagai contoh otorisasi
 
         $request->validate([
             'user_ids' => 'array',
